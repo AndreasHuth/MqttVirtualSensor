@@ -26,18 +26,31 @@ char OtaClientName[40]  = "Wifi_OTASensor";
 
 
 // MQTT
-const char* pup_alive         = "/topic/active";
-const char* pup_SensorValue   = "/topic/sensor";
+const char* pup_alive                 = "/topic/active";
+const char* pup_SensorValueRaw        = "/topic/sensorRaw";
+const char* pup_SensorValueMean       = "/topic/sensorMean";
+const char* pup_SensorValueFiltered   = "/topic/sensorFiltered";
+
+
 const char* sub_value1        = "/topic/value1";
 const char* sub_value2        = "/topic/value2";
 const char* sub_value3        = "/topic/value3";
 
-#define INTERVALL 2000
+#define INTERVALL 5000
+#define SENSOR_MAX 200
+#define RATIO 0.98
+
+long lastMsg = 0;
+
+int value           = 0;
+int valueMean       = SENSOR_MAX/2;
+float valueFiltered = SENSOR_MAX/2;
+
+boolean state = false;
 
 // WIFI
 WiFiClient espClient;
 PubSubClient client(espClient);
-
 
 
 //flag for saving data
@@ -48,7 +61,6 @@ void saveConfigCallback () {
   Serial.println("Should save config");
   shouldSaveConfig = true;
 }
-
 
 
 // OTA setup function:
@@ -87,8 +99,6 @@ void OTA_setup (void)
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 }
-
-boolean state = false;
 
 // MQTT callback function:
 void MQTTcallback(char* topic, byte* payload, unsigned int length) {
@@ -144,9 +154,8 @@ void setup() {
   Serial.println();
 
   // OUTPUT Definition !
-  pinMode(D0, OUTPUT);
-  digitalWrite(D0, LOW);
-
+  pinMode(D4, OUTPUT);
+  digitalWrite(D4, LOW);
 
   //clean FS, for testing
   //LittleFS.format();
@@ -187,8 +196,6 @@ void setup() {
   }
   //end read
 
-
-
   // The extra parameters to be configured (can be either global or just in the setup)
   // After connecting, parameter.getValue() will get you the configured value
   // id/name placeholder/prompt default length
@@ -210,7 +217,7 @@ void setup() {
   wifiManager.addParameter(&custom_mqtt_port);
 
   //reset settings - for testing
-  wifiManager.resetSettings();
+  //wifiManager.resetSettings();
 
   //set minimu quality of signal so it ignores AP's under that quality
   //defaults to 8%
@@ -272,9 +279,24 @@ void setup() {
   // MQTT - Connection:
   client.setServer(mqtt_server, 1883);
   client.setCallback(MQTTcallback);
-}
 
-long lastTransferTime = 0;
+
+  Serial.println();
+  Serial.println("MQTT settings / topics:");
+
+  Serial.println(" Device will publish: ");
+  Serial.println(" - /topic/active");
+  Serial.println(" - /topic/sensorRaw");
+  Serial.println(" - /topic/sensorMean");
+
+  Serial.println(" Device subsciptes: ");
+  Serial.println(" - /topic/value1");
+  Serial.println(" - /topic/value2");
+  Serial.println(" - /topic/value3");
+  Serial.println(" but currently no action!");
+
+  digitalWrite(D4, HIGH);
+}
 
 void loop() {
   // MQTT connect
@@ -286,17 +308,25 @@ void loop() {
   ArduinoOTA.handle();
 
   // put your main code here, to run repeatedly:
-
   long now = millis();
-  static long lastMsg = 0;
-  static int lastValue = 0;
+
   if (now - lastMsg > INTERVALL) {
     lastMsg = now;
-    int value = random(300);
-    if (abs(value - lastValue)> 15)
-      value = lastValue;
-    client.publish(pup_SensorValue, String(value).c_str());
+    do {
+      value = random(SENSOR_MAX);
+    } while (abs(value - valueMean) > SENSOR_MAX/4);
+    Serial.print("value_raw : "); Serial.println(value);
+
+    client.publish(pup_SensorValueRaw, String(value).c_str());
+      valueMean = (value + valueMean)/2;
+    Serial.print("value_mean : "); Serial.println(valueMean);
+    client.publish(pup_SensorValueMean, String(valueMean).c_str());
+
+    valueFiltered = valueFiltered * RATIO + (1-RATIO) * valueMean;
+    Serial.print("value_filtered : "); Serial.println(valueFiltered); Serial.println();
+    
+    client.publish(pup_SensorValueFiltered, String((int)valueFiltered).c_str());
+
     client.publish(pup_alive, "Hello World!");
-    lastValue = value; 
   }
 }
