@@ -71,7 +71,7 @@ void OTA_setup (void)
   ArduinoOTA.setPort(8266);
 
   // Hostname defaults to esp8266-[ChipID]
-  ArduinoOTA.setHostname("WEMOSD1");
+  ArduinoOTA.setHostname("WemosD1_virtual_Sensor");
 
   // No authentication by default
   ArduinoOTA.setPassword((const char *)"admin");
@@ -282,18 +282,27 @@ void setup() {
 
 
   Serial.println();
+  Serial.println("####################################");
+  Serial.println();
+  
   Serial.println("MQTT settings / topics:");
-
+  Serial.println();
+  
   Serial.println(" Device will publish: ");
   Serial.println(" - /topic/active");
   Serial.println(" - /topic/sensorRaw");
   Serial.println(" - /topic/sensorMean");
-
+  Serial.println(" - /topic/sensorFiltered");
+  Serial.println();
+  
   Serial.println(" Device subsciptes: ");
   Serial.println(" - /topic/value1");
   Serial.println(" - /topic/value2");
   Serial.println(" - /topic/value3");
   Serial.println(" but currently no action!");
+  Serial.println();
+  Serial.println("####################################");
+  Serial.println();
 
   digitalWrite(D4, HIGH);
 }
